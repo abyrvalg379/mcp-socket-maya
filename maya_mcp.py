@@ -64,7 +64,17 @@ TOOLS = [
      "params": ["code", "undo_chunk"],
      "description": ("Execute a Python code inside the running Maya instance. "
                      "Returns stdout output and/or the expression value. "
-                     "Full maya.cmds, OpenMaya API, and all Maya modules are available.")},
+                     "Full maya.cmds, OpenMaya API, and all Maya modules are "
+                     "available. Undo: calls arriving after a >10 s gap open "
+                     "one 'agent session' undo chunk (later calls join it; a "
+                     "watchdog closes it when the agent goes quiet) — so "
+                     "undo_agent_session rolls the whole session back with "
+                     "one step.")},
+    {"name": "undo_agent_session", "bridge": "undo_agent_session", "params": [],
+     "description": ("Undo the whole last agent session in one Maya undo "
+                     "step. Only works while the session chunk is still the "
+                     "top of the undo queue — otherwise refuses honestly "
+                     "instead of eating the user's own work.")},
     {"name": "get_scene_info", "bridge": "get_scene_info", "params": [],
      "description": ("Scene overview: filepath, units, up-axis, frame range, "
                      "object counts by type, top-level objects.")},
@@ -83,11 +93,40 @@ TOOLS = [
                      "use only when acceptable). Returns the filepath.")},
     {"name": "get_console_log", "bridge": "get_console_log",
      "params": ["last_n", "filter", "stream"],
-     "description": ("Ring buffer of stdout/stderr captured per executed code "
-                     "snippet (last_n default 50; filter substring; stream "
-                     "'stdout'/'stderr'/both).")},
+     "description": ("Ring buffer of stdout/stderr of the whole Maya session "
+                     "(global tee + per-execution captures; last_n default "
+                     "50; filter substring; stream 'stdout'/'stderr'/both).")},
     {"name": "clear_console_log", "bridge": "clear_console_log", "params": [],
      "description": "Clear the console ring buffer."},
+    {"name": "list_instances", "bridge": "list_instances", "params": [],
+     "description": ("Live Maya instances from the %TEMP% registry "
+                     "(pid, port, version, scene). Multi-Maya aware: the "
+                     "bridge auto-offsets the port for a second instance.")},
+    {"name": "export_fbx", "bridge": "export_fbx",
+     "params": ["path", "preset", "scope"],
+     "description": ("Export FBX with PROKLADKA neutral settings (meters, "
+                     "Y-up, binary): preset 'neutral' (default) or a "
+                     "receiver note preset 'maya'/'houdini'/'ue' (same "
+                     "settings, different receiver contract in the note). "
+                     "scope 'selected' (default) or 'scene'.")},
+    {"name": "import_fbx", "bridge": "import_fbx",
+     "params": ["path", "container"],
+     "description": ("Import FBX under a receiver container (t=0 r=0 s=1, "
+                     "default on): correct dimensions are baked in the "
+                     "vertices, never compensated on the transform. Reports "
+                     "bbox in meters and flags roots over 50 m. No "
+                     "auto-rescale, ever.")},
+    {"name": "replay_last_session", "bridge": "replay_last_session",
+     "params": [],
+     "description": ("Re-run the modifying commands of the last recorded "
+                     "agent session from the JSONL log (read-only steps are "
+                     "skipped, a failed step does not stop the rest). "
+                     "Audits what the agent did; replayed steps are marked "
+                     "replay:true in the log.")},
+    {"name": "get_session_log_path", "bridge": "get_session_log_path",
+     "params": [],
+     "description": ("Path of the newest JSONL agent-session log "
+                     "(%TEMP%/mcp_socket_maya/sessions).")},
 ]
 
 
@@ -113,9 +152,21 @@ def _tool_schema(tool: dict) -> dict:
             props[param] = {"type": "integer"}
         elif param == "include_shapes":
             props[param] = {"type": "boolean"}
+        elif param == "container":
+            props[param] = {"type": "boolean",
+                            "description": "group import under a receiver "
+                                           "container t=0 r=0 s=1 (default "
+                                           "true)"}
         elif param == "focus":
             props[param] = {"type": "boolean",
                             "description": "raise Maya before the grab"}
+        elif param == "preset":
+            props[param] = {"type": "string",
+                            "enum": ["neutral", "maya", "houdini", "ue"],
+                            "description": "export preset (default neutral)"}
+        elif param == "scope":
+            props[param] = {"type": "string", "enum": ["selected", "scene"],
+                            "description": "export scope (default selected)"}
         else:  # filepath
             props[param] = {"type": "string"}
     return {"type": "object", "properties": props, "required": required}
@@ -167,7 +218,7 @@ def _handle(msg: dict, port: int) -> None:
             "protocolVersion": msg.get("params", {}).get("protocolVersion",
                                                          "2025-11-25"),
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": "mcp-socket-maya", "version": "1.0.0"},
+            "serverInfo": {"name": "mcp-socket-maya", "version": "0.2.0"},
         })
     elif method == "notifications/initialized":
         pass

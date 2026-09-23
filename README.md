@@ -4,7 +4,7 @@ Local MCP bridge for Autodesk Maya — the Maya branch of the [mcp-socket](https
 
 Part of the **STUKACH — Pipeline Asset Validation System** toolset.
 
-**Author:** Maksim Kovalev · **Version:** 0.1.0 · **License:** GPL-3.0
+**Author:** Maksim Kovalev · **Version:** 0.2.0 · **License:** GPL-3.0
 
 *Документация на русском: [README.ru.md](README.ru.md)*
 
@@ -21,19 +21,43 @@ Every command is marshalled to Maya's main thread (`maya.utils.executeInMainThre
 ← {"status": "success", "result": {...}}
 ```
 
-## Tools (7)
+## Tools (13)
 
 | Tool | Purpose |
 |------|---------|
 | `ping_maya` | Maya version, pid, port, scene, units, object counts |
-| `execute_maya_code` | Python inside Maya — `cmds` / `om` / `omui` / `mel` / `mutils` preinjected, stdout/stderr captured, optional `result` variable returned JSON-safely, `undo_chunk=True` wraps each call into one undo step |
+| `execute_maya_code` | Python inside Maya — `cmds` / `om` / `omui` / `mel` / `mutils` preinjected, stdout/stderr captured, optional `result` variable returned JSON-safely; undo is session-based (see below) |
+| `undo_agent_session` | roll the whole agent session back with one undo step |
 | `get_scene_info` | filepath, units, up-axis, frame range, counts by type, top-level objects |
 | `get_hierarchy` | DAG tree (full paths, types, depth, visibility), capped at `max_nodes` with a `truncated` flag |
 | `get_screenshot` | **physical** screen capture via `QScreen.grabWindow` (the CopyFromScreen class — honest on scaled monitors, unlike `QWidget.grab`); `mode="window"` crops the Maya window, `"screen"` keeps everything; `focus=true` raises Maya first |
-| `get_console_log` | ring buffer of stdout/stderr captured per executed snippet (`last_n` / `filter` / `stream`) |
+| `get_console_log` | ring buffer of the whole Maya session's stdout/stderr — a global tee plus per-execution captures (`last_n` / `filter` / `stream`) |
 | `clear_console_log` | clear the ring |
+| `list_instances` | live Maya instances from a `%TEMP%` registry (pid, port, version, scene) |
+| `export_fbx` | PROKLADKA neutral export — meters, Y-up, binary; `preset` `neutral`/`maya`/`houdini`/`ue` (same settings, per-receiver contract note), `scope` `selected`/`scene` |
+| `import_fbx` | import under a receiver container (t=0 r=0 s=1), bbox reported in meters, roots over 50 m flagged; no magic multipliers; honest error when the session's importer returns nothing |
+| `replay_last_session` | re-run the modifying commands of the last recorded session from the JSONL log |
+| `get_session_log_path` | path of the newest JSONL session log |
 
 The screenshot tool exists because UI verification on a scaled monitor can only be trusted from a physical grab — this is the same lesson as PowerShell `CopyFromScreen` vs offscreen widget rendering.
+
+## Agent ergonomics
+
+- **Undo Agent Work** — commands arriving after a >10 s gap open one named undo
+  chunk; later commands within the gap join it; a QTimer watchdog closes the
+  chunk once the agent goes quiet, so the user's own edits never land inside.
+  `undo_agent_session` (or one Ctrl+Z while the chunk is still on top) rolls
+  the whole session back — and refuses honestly if the session is no longer
+  the top of the undo queue.
+- **Session log + replay** — every recorded command appends a JSON line to
+  `%TEMP%\mcp_socket_maya\sessions\`; a >10 s gap starts a new file, the 30
+  newest are kept. `replay_last_session` re-runs the modifying commands,
+  skips read-only ones and marks replayed steps `replay: true`.
+- **Shelf button + window** — an idempotent **MCP Socket** button lands in the
+  Custom shelf tab (icon embedded in the module) and opens a window with the
+  same sections as the Blender panel: status header, Undo Agent Work, Agent
+  Sessions (replay / copy log path), console log viewer, Pipeline FBX
+  (preset + scope + export / import).
 
 ## Install
 
