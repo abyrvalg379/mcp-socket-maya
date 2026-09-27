@@ -4,6 +4,8 @@ Local MCP bridge for Autodesk Maya — the Maya branch of the [mcp-socket](https
 
 Part of the **STUKACH — Pipeline Asset Validation System** toolset.
 
+![Smoke 5/5 passing](https://img.shields.io/badge/smoke-5%2F5%20passing-brightgreen)
+
 **Author:** Maksim Kovalev · **Version:** 0.2.0 · **License:** GPL-3.0
 
 *Документация на русском: [README.ru.md](README.ru.md)*
