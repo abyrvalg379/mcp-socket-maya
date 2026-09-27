@@ -103,6 +103,21 @@ Zero dependencies beyond the Python standard library. Example for a JSON-configu
 
 `--port 7778` or the `MAYA_MCP_SOCKET_PORT` env var selects a second Maya instance.
 
+## Smoke test
+
+`tests/socket_smoke.py` is a read-only smoke test for the live bridge — raw
+TCP on the wire protocol, read-only commands only (`ping`, `get_scene_info`,
+`get_hierarchy`, `list_instances`, `get_session_log_path`). Never mutates the
+scene, safe to run mid-session:
+
+```
+python tests/socket_smoke.py maya
+```
+
+Exit code is 0 when every reachable bridge passes. Run it before a release;
+the same script with no arguments also smokes the Blender (`:9876`) and
+Houdini (`:9877`) branches of the family.
+
 ## Security
 
 localhost-only, no authentication, and `execute_maya_code` runs arbitrary Python in your Maya — this is a single-workstation tool for artist+agent workflows, not a service. Do not expose the port.

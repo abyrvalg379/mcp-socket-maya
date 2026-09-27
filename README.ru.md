@@ -101,6 +101,21 @@ mutils.executeDeferred(_start_mcp)
 
 `--port 7778` или переменная `MAYA_MCP_SOCKET_PORT` выбирают второй инстанс Maya.
 
+## Смоук-тест
+
+`tests/socket_smoke.py` — read-only смоук живого моста: сырой TCP по
+wire-протоколу, только read-only команды (`ping`, `get_scene_info`,
+`get_hierarchy`, `list_instances`, `get_session_log_path`). Сцену не трогает —
+можно гонять посреди работы:
+
+```
+python tests/socket_smoke.py maya
+```
+
+Код возврата 0, когда все доступные мосты прошли проверки. Запускать перед
+релизом; тот же скрипт без аргументов проверяет ещё ветки Blender (`:9876`) и
+Houdini (`:9877`).
+
 ## Безопасность
 
 Только localhost, без аутентификации; `execute_maya_code` исполняет произвольный Python в вашей Maya — это инструмент одной рабочей станции для связки «художник + агент», а не сервис. Порт наружу не выставлять.
